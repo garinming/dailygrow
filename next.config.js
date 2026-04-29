@@ -1,5 +1,3 @@
-const path = require('path');
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
@@ -9,15 +7,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  transpilePackages: ['undici', 'firebase', '@firebase/auth'],
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        undici: path.resolve(__dirname, 'src/mocks/undici.js'),
-      };
-    }
-    return config;
+  experimental: {
+    serverComponentsExternalPackages: ['firebase', '@firebase/auth', 'undici'],
   },
 }
 
