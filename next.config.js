@@ -1,3 +1,5 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
@@ -9,13 +11,9 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        undici: false,
-        net: false,
-        tls: false,
-        fs: false,
-        dns: false,
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        undici: path.resolve(__dirname, 'src/mocks/undici.js'),
       };
     }
     return config;
