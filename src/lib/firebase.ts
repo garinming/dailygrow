@@ -11,7 +11,6 @@ const firebaseConfig = {
   appId: "1:485168155990:web:305042cea7a434c32f5af7"
 };
 
-// Singleton 패턴: 이미 초기화되어 있으면 재사용
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);

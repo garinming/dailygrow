@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Daily Glow & Grow',
-  description: '식단, 운동, 화장을 한곳에서 관리하는 자기관리 도구',
+  description: '식단, 운동, 스킨케어를 한곳에서 관리하는 자기관리 앱',
 }
 
 export default function RootLayout({
