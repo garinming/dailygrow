@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Flame, Dumbbell, Sparkles, Eye, EyeOff } from 'lucide-react';
@@ -155,6 +155,34 @@ export default function LoginPage() {
               {isSignup ? '이미 계정이 있어요 → 로그인' : '계정이 없어요 → 회원가입'}
             </button>
           </div>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-100" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="px-3 bg-white text-xs text-gray-400">또는</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={async () => {
+              setLoading(true);
+              try {
+                await signInAnonymously(auth);
+                router.replace('/');
+              } catch {
+                setError('익명 로그인에 실패했어요.');
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="w-full py-2.5 border border-gray-200 rounded-xl text-sm text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            🙈 로그인 없이 둘러보기
+          </button>
         </div>
       </div>
     </div>
