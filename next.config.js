@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  transpilePackages: ['undici', 'firebase', '@firebase/auth'],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.alias = {
