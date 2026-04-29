@@ -7,9 +7,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    serverComponentsExternalPackages: ['firebase', '@firebase/auth', 'undici'],
-  },
 }
 
 module.exports = nextConfig
