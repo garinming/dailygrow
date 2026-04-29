@@ -5,6 +5,7 @@ export interface DietEntry {
   foodName: string;
   calories: number;
   type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  photoUrl?: string;
 }
 
 export interface ExerciseRoutine {

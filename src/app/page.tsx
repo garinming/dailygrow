@@ -22,6 +22,16 @@ const TABS = [
   { id: 'routine' as Tab, label: '루틴', Icon: ListChecks },
 ];
 
+function getDietCache(uid: string): DietEntry[] {
+  if (typeof window === 'undefined') return [];
+  try { return JSON.parse(localStorage.getItem(`diets_${uid}`) ?? '[]'); }
+  catch { return []; }
+}
+function saveDietCache(uid: string, data: DietEntry[]) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(`diets_${uid}`, JSON.stringify(data));
+}
+
 export default function MainPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -45,24 +55,88 @@ export default function MainPage() {
 
   useEffect(() => {
     if (!user) return;
+
+    // Load localStorage immediately (instant UI)
+    const cached = getDietCache(user.uid);
+    if (cached.length) setDiets(cached);
+
     const dietQ = query(collection(db, 'diets'), where('userId', '==', user.uid));
     const routineQ = query(collection(db, 'routines'), where('userId', '==', user.uid));
 
-    const unsubDiet = onSnapshot(dietQ, snap =>
-      setDiets(snap.docs.map(d => ({ id: d.id, ...d.data() } as DietEntry)))
+    const unsubDiet = onSnapshot(
+      dietQ,
+      snap => {
+        const serverData = snap.docs.map(d => ({ id: d.id, ...d.data() } as DietEntry));
+        setDiets(prev => {
+          // Preserve local photos; keep temp entries not yet confirmed
+          const photoMap = new Map(prev.map(d => [d.id, d.photoUrl]));
+          const tempEntries = prev.filter(d => d.id.startsWith('temp_'));
+          const merged = [
+            ...serverData.map(d => ({ ...d, photoUrl: photoMap.get(d.id) })),
+            ...tempEntries,
+          ];
+          saveDietCache(user.uid, merged);
+          return merged;
+        });
+      },
+      () => { /* Firestore read error — keep localStorage data as-is */ }
     );
+
     const unsubRoutine = onSnapshot(routineQ, snap => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
       setExercises(all.filter(r => r.type === 'exercise'));
       setSkincares(all.filter(r => r.type === 'skincare'));
     });
+
     return () => { unsubDiet(); unsubRoutine(); };
   }, [user]);
 
-  const addDiet = (data: Omit<DietEntry, 'id' | 'userId'>) =>
-    addDoc(collection(db, 'diets'), { ...data, userId: user.uid });
+  const addDiet = (data: Omit<DietEntry, 'id' | 'userId'>) => {
+    const tempId = 'temp_' + Date.now();
+    const entry: DietEntry = { ...data, id: tempId, userId: user.uid };
 
-  const deleteDiet = (id: string) => deleteDoc(doc(db, 'diets', id));
+    // Optimistic: update state & localStorage immediately
+    setDiets(prev => {
+      const next = [...prev, entry];
+      saveDietCache(user.uid, next);
+      return next;
+    });
+
+    // Background sync to Firestore (exclude local-only photoUrl)
+    const { photoUrl, ...fsData } = data as any;
+    addDoc(collection(db, 'diets'), { ...fsData, userId: user.uid })
+      .then(ref => {
+        setDiets(prev => {
+          const next = prev.map(d => d.id === tempId ? { ...d, id: ref.id } : d);
+          saveDietCache(user.uid, next);
+          return next;
+        });
+      })
+      .catch(() => { /* keep in localStorage even if Firestore fails */ });
+  };
+
+  const deleteDiet = (id: string) => {
+    setDiets(prev => {
+      const next = prev.filter(d => d.id !== id);
+      saveDietCache(user.uid, next);
+      return next;
+    });
+    if (!id.startsWith('temp_')) {
+      deleteDoc(doc(db, 'diets', id)).catch(() => {});
+    }
+  };
+
+  const updateDiet = (id: string, data: Partial<Omit<DietEntry, 'id' | 'userId'>>) => {
+    setDiets(prev => {
+      const next = prev.map(d => d.id === id ? { ...d, ...data } : d);
+      saveDietCache(user.uid, next);
+      return next;
+    });
+    if (!id.startsWith('temp_')) {
+      const { photoUrl, ...fsData } = data as any;
+      updateDoc(doc(db, 'diets', id), fsData).catch(() => {});
+    }
+  };
 
   const addRoutine = (data: any) =>
     addDoc(collection(db, 'routines'), { ...data, userId: user.uid, completedDates: [] });
@@ -116,7 +190,7 @@ export default function MainPage() {
           />
         )}
         {tab === 'diet' && (
-          <DietView diets={diets} onAdd={addDiet} onDelete={deleteDiet} />
+          <DietView diets={diets} onAdd={addDiet} onUpdate={updateDiet} onDelete={deleteDiet} />
         )}
         {tab === 'routine' && (
           <RoutineView
