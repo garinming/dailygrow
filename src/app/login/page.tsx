@@ -6,10 +6,21 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Flame, Dumbbell, Sparkles, Eye, EyeOff } from 'lucide-react';
 
+function toEmail(username: string) {
+  return `${username.toLowerCase().trim()}@dailygrow.app`;
+}
+
+function validateUsername(u: string) {
+  if (u.length < 3) return '아이디는 3자 이상이어야 해요.';
+  if (u.length > 20) return '아이디는 20자 이하여야 해요.';
+  if (!/^[a-zA-Z0-9_-]+$/.test(u)) return '영문, 숫자, _, - 만 사용할 수 있어요.';
+  return '';
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [isSignup, setIsSignup] = useState(false);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -17,11 +28,10 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   const ERROR_MAP: Record<string, string> = {
-    'auth/email-already-in-use': '이미 사용 중인 이메일이에요.',
-    'auth/invalid-email': '이메일 형식이 올바르지 않아요.',
-    'auth/user-not-found': '가입되지 않은 이메일이에요.',
+    'auth/email-already-in-use': '이미 사용 중인 아이디예요.',
+    'auth/user-not-found': '존재하지 않는 아이디예요.',
     'auth/wrong-password': '비밀번호가 틀렸어요.',
-    'auth/invalid-credential': '이메일 또는 비밀번호를 확인해주세요.',
+    'auth/invalid-credential': '아이디 또는 비밀번호를 확인해주세요.',
     'auth/too-many-requests': '잠시 후 다시 시도해주세요.',
     'auth/weak-password': '비밀번호는 6자 이상이어야 해요.',
   };
@@ -29,10 +39,16 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const usernameErr = validateUsername(username);
+    if (usernameErr) { setError(usernameErr); return; }
+
     if (isSignup && password !== confirmPassword) {
       setError('비밀번호가 일치하지 않아요.');
       return;
     }
+
+    const email = toEmail(username);
     setLoading(true);
     try {
       if (isSignup) {
@@ -86,13 +102,14 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">이메일</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">아이디</label>
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="example@email.com"
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
+                placeholder="영문, 숫자, _, - (3~20자)"
                 required
+                autoComplete="username"
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-200"
               />
             </div>
@@ -106,13 +123,11 @@ export default function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   placeholder="6자 이상"
                   required
+                  autoComplete={isSignup ? 'new-password' : 'current-password'}
                   className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-200"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-                >
+                <button type="button" onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                   {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
@@ -127,6 +142,7 @@ export default function LoginPage() {
                   onChange={e => setConfirmPassword(e.target.value)}
                   placeholder="비밀번호 재입력"
                   required
+                  autoComplete="new-password"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-200"
                 />
               </div>
@@ -138,11 +154,8 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-semibold hover:from-orange-600 hover:to-amber-600 transition-all shadow-sm disabled:opacity-50"
-            >
+            <button type="submit" disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-semibold hover:from-orange-600 hover:to-amber-600 transition-all shadow-sm disabled:opacity-50">
               {loading ? '처리 중...' : isSignup ? '가입하기' : '로그인'}
             </button>
           </form>
@@ -174,7 +187,7 @@ export default function LoginPage() {
                 await signInAnonymously(auth);
                 router.replace('/');
               } catch {
-                setError('익명 로그인에 실패했어요.');
+                setError('게스트 로그인에 실패했어요.');
               } finally {
                 setLoading(false);
               }
