@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, Trash2, Flame } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Trash2, Flame, Sparkles } from 'lucide-react';
 import type { DietEntry } from '@/types';
+import { searchFoods, type FoodItem } from '@/data/foods';
 
 interface Props {
   diets: DietEntry[];
@@ -29,6 +30,9 @@ export default function DietView({ diets, onAdd, onDelete }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ foodName: '', calories: '', type: 'breakfast' as DietEntry['type'] });
   const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<FoodItem[]>([]);
+  const [autoFilled, setAutoFilled] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const dateDiets = diets.filter(d => d.date === selectedDate);
   const total = dateDiets.reduce((s, d) => s + d.calories, 0);
@@ -39,6 +43,18 @@ export default function DietView({ diets, onAdd, onDelete }: Props) {
     return { label: getDateLabel(i, d), value: d.toISOString().split('T')[0] };
   });
 
+  const handleFoodNameChange = (value: string) => {
+    setForm(f => ({ ...f, foodName: value }));
+    setAutoFilled(false);
+    setSuggestions(searchFoods(value));
+  };
+
+  const selectSuggestion = (food: FoodItem) => {
+    setForm(f => ({ ...f, foodName: food.name, calories: String(food.calories) }));
+    setSuggestions([]);
+    setAutoFilled(true);
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.foodName.trim() || !form.calories) return;
@@ -46,6 +62,8 @@ export default function DietView({ diets, onAdd, onDelete }: Props) {
     try {
       await onAdd({ date: selectedDate, foodName: form.foodName.trim(), calories: Number(form.calories), type: form.type });
       setForm({ foodName: '', calories: '', type: 'breakfast' });
+      setSuggestions([]);
+      setAutoFilled(false);
       setShowAdd(false);
     } finally {
       setLoading(false);
@@ -58,7 +76,7 @@ export default function DietView({ diets, onAdd, onDelete }: Props) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-800">식단 기록</h2>
         <button
-          onClick={() => setShowAdd(!showAdd)}
+          onClick={() => { setShowAdd(!showAdd); setSuggestions([]); setAutoFilled(false); }}
           className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
         >
           <Plus size={15} /> 추가
@@ -93,27 +111,63 @@ export default function DietView({ diets, onAdd, onDelete }: Props) {
       {showAdd && (
         <form onSubmit={handleAdd} className="bg-orange-50 rounded-2xl p-4 border border-orange-200 space-y-3">
           <p className="font-semibold text-gray-800 text-sm">음식 추가</p>
-          <input
-            type="text"
-            placeholder="음식 이름 (예: 현미밥, 닭가슴살)"
-            value={form.foodName}
-            onChange={e => setForm({ ...form, foodName: e.target.value })}
-            required
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 bg-white"
-          />
-          <div className="grid grid-cols-2 gap-2">
+
+          {/* 음식 이름 + 자동완성 */}
+          <div className="relative">
             <input
-              type="number"
-              placeholder="칼로리 (kcal)"
-              value={form.calories}
-              onChange={e => setForm({ ...form, calories: e.target.value })}
+              ref={inputRef}
+              type="text"
+              placeholder="음식 이름 입력 (예: 닭가슴살, 비빔밥)"
+              value={form.foodName}
+              onChange={e => handleFoodNameChange(e.target.value)}
               required
-              min="0"
-              className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 bg-white"
+              autoComplete="off"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 bg-white"
             />
+            {/* 자동완성 드롭다운 */}
+            {suggestions.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white rounded-xl border border-orange-200 shadow-lg overflow-hidden">
+                {suggestions.map(food => (
+                  <button
+                    key={food.name}
+                    type="button"
+                    onMouseDown={() => selectSuggestion(food)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-orange-50 transition-colors text-left border-b border-gray-50 last:border-0"
+                  >
+                    <span className="text-sm text-gray-800">{food.name}</span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className="text-xs text-gray-400">{food.unit}</span>
+                      <span className="text-sm font-semibold text-orange-500">{food.calories}kcal</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 칼로리 필드 */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative">
+              <input
+                type="number"
+                placeholder="칼로리 (kcal)"
+                value={form.calories}
+                onChange={e => { setForm(f => ({ ...f, calories: e.target.value })); setAutoFilled(false); }}
+                required
+                min="0"
+                className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none bg-white ${
+                  autoFilled ? 'border-orange-300 bg-orange-50' : 'border-gray-200 focus:border-orange-400'
+                }`}
+              />
+              {autoFilled && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <Sparkles size={13} className="text-orange-400" />
+                </span>
+              )}
+            </div>
             <select
               value={form.type}
-              onChange={e => setForm({ ...form, type: e.target.value as DietEntry['type'] })}
+              onChange={e => setForm(f => ({ ...f, type: e.target.value as DietEntry['type'] }))}
               className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 bg-white"
             >
               {MEAL_TYPES.map(m => (
@@ -121,6 +175,13 @@ export default function DietView({ diets, onAdd, onDelete }: Props) {
               ))}
             </select>
           </div>
+
+          {autoFilled && (
+            <p className="text-xs text-orange-400 flex items-center gap-1">
+              <Sparkles size={11} /> 칼로리가 자동으로 입력됐어요. 수정도 가능해요.
+            </p>
+          )}
+
           <div className="flex gap-2">
             <button type="button" onClick={() => setShowAdd(false)}
               className="flex-1 py-2.5 border border-gray-200 bg-white rounded-xl text-sm text-gray-600">
